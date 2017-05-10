@@ -20,7 +20,7 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  */
-def version() {return "ver 0.2.20170501" }
+def version() {return "ver 0.2.20170509" }
 /*
  05/01 fixed bug when recreated child names didn't use the new name but the original name; def createFanChild() 
     c- added TurningBreezeOff attributeState to match the Breeze icon 
@@ -110,16 +110,9 @@ metadata {
 }
 
 def parse(String description) {
-		//log.debug "Parse description $description"           
+		log.debug "Parse description $description"           
         def event = zigbee.getEvent(description)
     	if (event) {
-        	//log.info "ENTER LIGHT"
-            //Don't know what this part of the parse is for
-        	if (event.name == "power") {            	
-                event.value = (event.value as Integer) / 10                
-                sendEvent(event)
-        	}
-        	else {
             	log.info "Light event detected on controller: ${event}"
             	def childDevice = getChildDevices()?.find {		//find light child device
         				it.device.deviceNetworkId == "${device.deviceNetworkId}-Lamp" 
@@ -127,7 +120,6 @@ def parse(String description) {
                 childDevice.sendEvent(event)	//send light events to light child device and update lightBrightness attribute
                 if(event.value != "on" && event.value != "off") sendEvent(name: "lightBrightness", value: event.value)
         	}        
-    	}
 		else {
         	log.info "Fan event detected on controller"
 			def map = [:]
@@ -141,7 +133,7 @@ def parse(String description) {
 					map.value = descMap.value
                     fanSync(descMap.value)
 				} 
-			}	// End of Read Attribute Response
+                }
 			def result = null            
             if (map) {            
 				result = createEvent(map)                
@@ -186,6 +178,7 @@ def installed() {
 }
 
 def updated() {
+	sendEvent(name: "checkInterval", value: 60 * 5, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
 	if(state.oldLabel != device.label) {updateChildLabel()}
 		initialize()    
 }
@@ -235,9 +228,6 @@ def createFanChild() {
 	}
 }
 
-
-
-
 def createLightChild() {
 	def childDevice = getChildDevices()?.find {
         	it.device.deviceNetworkId == "${device.deviceNetworkId}-Lamp"
@@ -263,6 +253,8 @@ def deleteChildren() {
 
 def configure() {
 	log.info "Configuring Reporting and Bindings."
+    sendEvent(name: "checkInterval", value: 5 * 60, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
+
 	def cmd = 
     [
 	  //Set long poll interval
@@ -291,10 +283,9 @@ def configure() {
 }
 
 def on() {
-	log.info "Resuming Previous Fan Speed"   
+    log.info "Resuming Previous Fan Speed"
 	def lastFan =  device.currentValue("lastFanMode")	 //resumes previous fanspeed
 	return setFanSpeed("$lastFan")
-    
 }
 
 def off() {	
@@ -351,7 +342,7 @@ def fanSync(whichFan) {
     
 }
 
-def ping() {	
+def ping() {
     return zigbee.onOffRefresh()
 }
 
